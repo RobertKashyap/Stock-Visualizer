@@ -45,8 +45,11 @@ public class PortfolioManagerApplication {
   //  2. You can use "./gradlew build" to check if your code builds successfully.
 
   public static List<String> mainReadFile(String[] args) throws IOException, URISyntaxException {
-
-     return Collections.emptyList();
+    File reader = resolveFileFromResources(args[0]);
+    ObjectMapper mapper = getObjectMapper();
+    PortfolioTrade[] portfolios = mapper.readValue(reader, PortfolioTrade[].class);
+    List<String> list = Arrays.stream(portfolios).map(PortfolioTrade::getSymbol).collect(Collectors.toList());
+     return list;
   }
 
 
