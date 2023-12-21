@@ -51,12 +51,13 @@ public class PortfolioManagerApplication {
   // 2. You can use "./gradlew build" to check if your code builds successfully.
 
   public static List<String> mainReadFile(String[] args) throws IOException, URISyntaxException {
-    File reader = resolveFileFromResources(args[0]);
-    ObjectMapper mapper = getObjectMapper();
-    PortfolioTrade[] portfolios = mapper.readValue(reader, PortfolioTrade[].class);
-    List<String> list =
-        Arrays.stream(portfolios).map(PortfolioTrade::getSymbol).collect(Collectors.toList());
-    return list;
+    List<String> listOfSymbols = new ArrayList<>();
+    List<PortfolioTrade> portfolioTrades = getObjectMapper()
+        .readValue(resolveFileFromResources(args[0]), new TypeReference<List<PortfolioTrade>>() {});
+    for (PortfolioTrade portfolioTrade : portfolioTrades) {
+      listOfSymbols.add(portfolioTrade.getSymbol());
+    }
+    return listOfSymbols;
   }
 
 
@@ -138,17 +139,17 @@ public class PortfolioManagerApplication {
   public static List<String> debugOutputs() {
 
     String valueOfArgument0 = "trades.json";
-    String resultOfResolveFilePathArgs0 = "";
-    String toStringOfObjectMapper = "";
-    String functionNameFromTestFileInStackTrace = "";
-    String lineNumberFromTestFileInStackTrace = "";
+    String resultOfResolveFilePathArgs0 =
+        "/home/crio-user/workspace/axitchandora-ME_QMONEY_V2/qmoney/bin/main/trades.json";
+    String toStringOfObjectMapper = "com.fasterxml.jackson.databind.ObjectMapper@1a482e36";
+    String functionNameFromTestFileInStackTrace = "mainReadFile";
+    String lineNumberFromTestFileInStackTrace = "29";
 
 
     return Arrays.asList(
         new String[] {valueOfArgument0, resultOfResolveFilePathArgs0, toStringOfObjectMapper,
             functionNameFromTestFileInStackTrace, lineNumberFromTestFileInStackTrace});
   }
-
 
   // Note:
   // Remember to confirm that you are getting same results for annualized returns as in Module 3.
@@ -174,17 +175,15 @@ public class PortfolioManagerApplication {
     return listOfSortSymbolsOnClosingPrice;
   }
 
-
   // TODO:
   // After refactor, make sure that the tests pass by using these two commands
   // ./gradlew test --tests PortfolioManagerApplicationTest.readTradesFromJson
   // ./gradlew test --tests PortfolioManagerApplicationTest.mainReadFile
   public static List<PortfolioTrade> readTradesFromJson(String filename)
       throws IOException, URISyntaxException {
-    File reader = resolveFileFromResources(filename);
-    ObjectMapper mapper = getObjectMapper();
-    PortfolioTrade[] portfolios = mapper.readValue(reader, PortfolioTrade[].class);
-    return Arrays.asList(portfolios);
+    List<PortfolioTrade> portfolioTrades = getObjectMapper().readValue(
+        resolveFileFromResources(filename), new TypeReference<List<PortfolioTrade>>() {});
+    return portfolioTrades;
   }
 
 
@@ -214,17 +213,20 @@ public class PortfolioManagerApplication {
   //  Ensure all tests are passing using below command
   //  ./gradlew test --tests ModuleThreeRefactorTest
   static Double getOpeningPriceOnStartDate(List<Candle> candles) {
-     return 0.0;
+    return candles.get(0).getOpen();
   }
 
 
   public static Double getClosingPriceOnEndDate(List<Candle> candles) {
-     return 0.0;
+    return candles.get(candles.size() - 1).getClose();
   }
 
-
   public static List<Candle> fetchCandles(PortfolioTrade trade, LocalDate endDate, String token) {
-     return Collections.emptyList();
+    RestTemplate restTemplate = new RestTemplate();
+    String tiingoRestURL = prepareUrl(trade, endDate, token);
+    TiingoCandle[] tiingoCandleArray =
+        restTemplate.getForObject(tiingoRestURL, TiingoCandle[].class);
+    return Arrays.stream(tiingoCandleArray).collect(Collectors.toList());
   }
 
   // public static List<AnnualizedReturn> mainCalculateSingleReturn(String[] args)
@@ -248,6 +250,9 @@ public class PortfolioManagerApplication {
         .collect(Collectors.toList());
   }
 
+  private static String readFileAsString(String fileName) throws IOException, URISyntaxException {
+    return new String(Files.readAllBytes(resolveFileFromResources(fileName).toPath()), "UTF-8");
+  }
 
   // TODO: CRIO_TASK_MODULE_CALCULATIONS
   //  Return the populated list of AnnualizedReturn for all stocks.
@@ -261,27 +266,46 @@ public class PortfolioManagerApplication {
   //  Test the same using below specified command. The build should be successful.
   //     ./gradlew test --tests PortfolioManagerApplicationTest.testCalculateAnnualizedReturn
 
-  public static AnnualizedReturn calculateAnnualizedReturns(LocalDate endDate, PortfolioTrade trade, Double buyPrice, Double sellPrice) {
-    int quantity = trade.getQuantity();
-    Double totalSoldValue = quantity * sellPrice;
-    Double totalBoughtValue = quantity * buyPrice;
+  public static AnnualizedReturn calculateAnnualizedReturns(LocalDate endDate, PortfolioTrade trade,
+      Double buyPrice, Double sellPrice) {
+    double total_num_years = ChronoUnit.DAYS.between(trade.getPurchaseDate(), endDate) / 365.2422;
+    double totalReturns = (sellPrice - buyPrice) / buyPrice;
+    double annualized_returns = Math.pow((1.0 + totalReturns), (1.0 / total_num_years)) - 1;
+    return new AnnualizedReturn(trade.getSymbol(), annualized_returns, totalReturns);
+  }
+/*
+  public static List<AnnualizedReturn> mainCalculateReturnsAfterRefactor(String[] args)
+      throws Exception {
+    String file = args[0];
+    LocalDate endDate = LocalDate.parse(args[1]);
+    String contents = readFileAsString(file);
+    ObjectMapper objectMapper = getObjectMapper();
+    PortfolioManager portfolioManager =
+        PortfolioManagerFactory.getPortfolioManager(new RestTemplate());
+    List<PortfolioTrade> portfolioTrades =
+        objectMapper.readValue(contents, new TypeReference<List<PortfolioTrade>>() {});
+    return portfolioManager.calculateAnnualizedReturn(portfolioTrades, endDate);
+  }
 
-    Double totalReturn = (totalSoldValue - totalBoughtValue) / totalBoughtValue;
-    LocalDate start = trade.getPurchaseDate();
+  public static List<AnnualizedReturn> mainCalculateReturnsAfterNewServiceProvider(String[] args)
+      throws Exception {
+    String file = args[0];
+    LocalDate endDate = LocalDate.parse(args[1]);
+    String contents = readFileAsString(file);
+    ObjectMapper objectMapper = getObjectMapper();
+    PortfolioManager portfolioManager =
+        PortfolioManagerFactory.getPortfolioManager("tingoo",new RestTemplate());
+    List<PortfolioTrade> portfolioTrades =
+        objectMapper.readValue(contents, new TypeReference<List<PortfolioTrade>>() {});
+    // List<Candle> candles =
+    // ((PortfolioManagerImpl)portfolioManager).getStockQuote(portfolioTrade.getSymbol(),
+    // portfolioTrade.getPurchaseDate(), endDate);
+    List<AnnualizedReturn> aa =
+        portfolioManager.calculateAnnualizedReturnParallel(portfolioTrades, endDate,10);
+    return aa;
+  }
 
-    Long days = ChronoUnit.DAYS.between(start, endDate);
-
-    String dayString = days.toString();
-    Double totalDays = Double.valueOf(dayString);
-    Double totalYear = totalDays / 365.0;
-    Double annualReturn = (Math.pow((1 + totalReturn), (1 / totalYear))) - 1;
-    return new AnnualizedReturn(trade.getSymbol(), annualReturn, totalReturn);
-}
-
-
-
-
-
+ */
 
 
 
