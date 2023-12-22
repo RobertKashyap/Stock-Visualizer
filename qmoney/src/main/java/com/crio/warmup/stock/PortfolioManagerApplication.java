@@ -4,7 +4,10 @@ package com.crio.warmup.stock;
 
 import com.crio.warmup.stock.dto.*;
 import com.crio.warmup.stock.log.UncaughtExceptionHandler;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.crio.warmup.stock.portfolio.PortfolioManager;
+import com.crio.warmup.stock.portfolio.PortfolioManagerFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.io.File;
@@ -59,6 +62,7 @@ public class PortfolioManagerApplication {
     }
     return listOfSymbols;
   }
+
 
 
 
@@ -273,7 +277,7 @@ public class PortfolioManagerApplication {
     double annualized_returns = Math.pow((1.0 + totalReturns), (1.0 / total_num_years)) - 1;
     return new AnnualizedReturn(trade.getSymbol(), annualized_returns, totalReturns);
   }
-/*
+
   public static List<AnnualizedReturn> mainCalculateReturnsAfterRefactor(String[] args)
       throws Exception {
     String file = args[0];
@@ -286,7 +290,7 @@ public class PortfolioManagerApplication {
         objectMapper.readValue(contents, new TypeReference<List<PortfolioTrade>>() {});
     return portfolioManager.calculateAnnualizedReturn(portfolioTrades, endDate);
   }
-
+/*
   public static List<AnnualizedReturn> mainCalculateReturnsAfterNewServiceProvider(String[] args)
       throws Exception {
     String file = args[0];
@@ -314,6 +318,67 @@ public class PortfolioManagerApplication {
 
 
 
+
+
+
+
+
+
+
+
+
+  // TODO: CRIO_TASK_MODULE_REFACTOR
+  //  Once you are done with the implementation inside PortfolioManagerImpl and
+  //  PortfolioManagerFactory, create PortfolioManager using PortfolioManagerFactory.
+  //  Refer to the code from previous modules to get the List<PortfolioTrades> and endDate, and
+  //  call the newly implemented method in PortfolioManager to calculate the annualized returns.
+
+  // Note:
+  // Remember to confirm that you are getting same results for annualized returns as in Module 3.
+
+  // public static List<AnnualizedReturn> mainCalculateReturnsAfterRefactor(String[] args)
+  //     throws Exception {
+  //      String file = args[0];
+  //      LocalDate endDate = LocalDate.parse(args[1]);
+  //      String contents = readFileAsString(file);
+  //      ObjectMapper objectMapper = getObjectMapper();
+  //      return portfolioManager.calculateAnnualizedReturn(Arrays.asList(portfolioTrades), endDate);
+  // }
+  public List<AnnualizedReturn> calculateAnnualizedReturn(List<PortfolioTrade> portfolioTrades,
+  LocalDate endDate) throws JsonProcessingException{
+List<AnnualizedReturn> annualizedReturns = new ArrayList<>();
+for (PortfolioTrade portfolioTrade : portfolioTrades) {
+  List<Candle> candles =
+      getStockQuote(portfolioTrade.getSymbol(), portfolioTrade.getPurchaseDate(), endDate);
+  AnnualizedReturn annualizedReturn = calculateAnnualizedReturns(endDate, portfolioTrade,
+      getOpeningPriceOnStartDate(candles), getClosingPriceOnEndDate(candles));
+  annualizedReturns.add(annualizedReturn);
+}
+return annualizedReturns.stream().sorted(getComparator()).collect(Collectors.toList());
+}
+
+private Comparator<AnnualizedReturn> getComparator() {
+  return Comparator.comparing(AnnualizedReturn::getAnnualizedReturn).reversed();
+}
+
+
+public List<Candle> getStockQuote(String symbol, LocalDate from, LocalDate to)
+throws JsonProcessingException {
+String tiingoRestURL = buildUri(symbol, from, to);
+TiingoCandle[] tiingoCandleArray =
+restTemplate.getForObject(tiingoRestURL, TiingoCandle[].class);
+if (tiingoCandleArray == null)
+return new ArrayList<>();
+return Arrays.stream(tiingoCandleArray).collect(Collectors.toList());  }
+
+protected String buildUri(String symbol, LocalDate startDate, LocalDate endDate) {
+ String uriTemplate = "https:api.tiingo.com/tiingo/daily/$SYMBOL/prices?"
+      + "startDate=$STARTDATE&endDate=$ENDDATE&token=$APIKEY";
+return uriTemplate;
+}
+
+
+
   public static void main(String[] args) throws Exception {
     Thread.setDefaultUncaughtExceptionHandler(new UncaughtExceptionHandler());
     ThreadContext.put("runId", UUID.randomUUID().toString());
@@ -336,6 +401,10 @@ public class PortfolioManagerApplication {
 
   public static String getToken() {
     return TIINGO_API_TOKEN;
+
+
+
+    // printJsonObject(mainCalculateReturnsAfterRefactor(args));
   }
 }
 
