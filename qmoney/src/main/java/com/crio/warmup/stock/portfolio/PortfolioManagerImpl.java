@@ -56,6 +56,8 @@ public class PortfolioManagerImpl implements PortfolioManager {
 
 
 
+
+
   private Comparator<AnnualizedReturn> getComparator() {
     return Comparator.comparing(AnnualizedReturn::getAnnualizedReturn).reversed();
   }
@@ -114,4 +116,7 @@ return new AnnualizedReturn(trade.getSymbol(), annualized_returns, totalReturns)
   private Double getOpeningPriceOnStartDate(List<Candle> candles) {
     return candles.get(0).getOpen();
   }
+
+
+
 }
